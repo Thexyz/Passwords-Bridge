@@ -1,1 +1,33 @@
 
+# Drop this next to vault-bridge.php (same folder).
+#
+# Forces correct CORS for the XYZ Passwords bridge at the server level, so it
+# works even when the parent server has a global OPTIONS/CORS handler that would
+# otherwise strip these headers (a very common shared-hosting setup).
+#
+# The bridge uses a Bearer token (no cookies), so no Allow-Credentials is needed.
+# Change the origin below if your vault app lives somewhere other than
+# https://passwords.xyz.am.
+
+<IfModule mod_headers.c>
+  Header always set Access-Control-Allow-Origin "https://passwords.xyz.am"
+  Header always set Access-Control-Allow-Methods "GET, PUT, DELETE, OPTIONS"
+  Header always set Access-Control-Allow-Headers "Content-Type, Authorization"
+  Header always set Access-Control-Max-Age "86400"
+  Header always set Vary "Origin"
+</IfModule>
+
+# Many FastCGI/CGI setups strip the Authorization header before PHP sees it.
+# These make sure the Bearer token actually reaches the bridge.
+<IfModule mod_setenvif.c>
+  SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+</IfModule>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Pass the Authorization header through to PHP.
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+  # Answer the CORS preflight with 204 (the CORS headers above still apply).
+  RewriteCond %{REQUEST_METHOD} OPTIONS
+  RewriteRule ^ - [R=204,L]
+</IfModule>
